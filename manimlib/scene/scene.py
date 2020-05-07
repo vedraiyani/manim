@@ -543,23 +543,14 @@ class Scene(Container):
             self.file_writer.write_frame(frame)
 
     def add_sound(self, sound_file, time_offset=0, gain=None, **kwargs):
+        if self.skip_animations:
+            return
         time = self.get_time() + time_offset
         self.file_writer.add_sound(sound_file, time, gain, **kwargs)
 
     def show_frame(self):
         self.update_frame(ignore_skipping=True)
         self.get_image().show()
-
-    # TODO, this doesn't belong in Scene, but should be
-    # part of some more specialized subclass optimized
-    # for livestreaming
-    def tex(self, latex):
-        eq = TextMobject(latex)
-        anims = []
-        anims.append(Write(eq))
-        for mobject in self.mobjects:
-            anims.append(ApplyMethod(mobject.shift, 2 * UP))
-        self.play(*anims)
 
 
 class EndSceneEarlyException(Exception):

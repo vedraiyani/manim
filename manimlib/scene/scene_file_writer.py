@@ -28,12 +28,10 @@ class SceneFileWriter(object):
         "save_last_frame": False,
         "movie_file_extension": ".mp4",
         "gif_file_extension": ".gif",
-        "livestreaming": False,
-        "to_twitch": False,
-        "twitch_key": None,
         # Previous output_file_name
         # TODO, address this in extract_scene et. al.
         "file_name": None,
+        "input_file_path": "",  # ??
         "output_directory": None,
     }
 
@@ -170,15 +168,10 @@ class SceneFileWriter(object):
     def begin_animation(self, allow_write=False):
         if self.write_to_movie and allow_write:
             self.open_movie_pipe()
-        if self.livestreaming:
-            self.stream_lock = False
 
     def end_animation(self, allow_write=False):
         if self.write_to_movie and allow_write:
             self.close_movie_pipe()
-        if self.livestreaming:
-            self.stream_lock = True
-            thread.start_new_thread(self.idle_stream, ())
 
     def write_frame(self, frame):
         if self.write_to_movie:
@@ -230,38 +223,28 @@ class SceneFileWriter(object):
             '-pix_fmt', 'rgba',
             '-r', str(fps),  # frames per second
             '-i', '-',  # The imput comes from a pipe
-            '-c:v', 'h264_nvenc',
             '-an',  # Tells FFMPEG not to expect any audio
             '-loglevel', 'error',
         ]
+        # TODO, the test for a transparent background should not be based on
+        # the file extension.
         if self.movie_file_extension == ".mov":
-            # This is if the background of the exported video
-            # should be transparent.
+            # This is if the background of the exported
+            # video should be transparent.
             command += [
                 '-vcodec', 'qtrle',
-                # '-vcodec', 'png',
             ]
         else:
             command += [
                 '-vcodec', 'libx264',
                 '-pix_fmt', 'yuv420p',
             ]
-        if self.livestreaming:
-            if self.to_twitch:
-                command += ['-f', 'flv']
-                command += ['rtmp://live.twitch.tv/app/' + self.twitch_key]
-            else:
-                command += ['-f', 'mpegts']
-                command += [STREAMING_PROTOCOL + '://' + STREAMING_IP + ':' + STREAMING_PORT]
-        else:
-            command += [temp_file_path]
+        command += [temp_file_path]
         self.writing_process = subprocess.Popen(command, stdin=subprocess.PIPE)
 
     def close_movie_pipe(self):
         self.writing_process.stdin.close()
         self.writing_process.wait()
-        if self.livestreaming:
-            return True
         shutil.move(
             self.temp_partial_movie_file_path,
             self.partial_movie_file_path,
@@ -351,7 +334,7 @@ class SceneFileWriter(object):
             ]
             subprocess.call(commands)
             shutil.move(temp_file_path, movie_file_path)
-            subprocess.call(["rm", sound_file_path])
+            os.remove(sound_file_path)
 
         self.print_file_ready_message(movie_file_path)
 
